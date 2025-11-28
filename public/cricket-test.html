@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cricket Streams Test - Cricwatch.io Proxy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 16px;
+      background: #0b1120;
+      color: #e5e7eb;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .panel {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 500;
+      margin: 4px;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    button.secondary {
+      background: #4b5563;
+    }
+    button.danger {
+      background: #dc2626;
+    }
+    video {
+      width: 100%;
+      max-width: 900px;
+      background: black;
+    }
+    pre {
+      background: #020617;
+      border-radius: 6px;
+      padding: 8px;
+      max-height: 400px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+    .category-item, .match-item {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 8px 0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .category-item:hover, .match-item:hover {
+      background: #334155;
+    }
+    .category-item.selected, .match-item.selected {
+      background: #2563eb;
+      border-color: #3b82f6;
+    }
+    .stream-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .stream-link {
+      background: #4b5563;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .stream-link:hover {
+      background: #6b7280;
+    }
+    .loading {
+      color: #fbbf24;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .success {
+      color: #10b981;
+    }
+    .status {
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+</head>
+<body>
+  <h1>Cricket Streams Test - Cricwatch.io Proxy</h1>
+  
+  <div class="panel">
+    <button id="loadCategories">Load Categories</button>
+    <button id="loadAllData" class="secondary">Load All Cricket Data</button>
+    <button id="clearCache" class="danger">Clear Cache</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Categories</h3>
+      <div id="categories-list"></div>
+    </div>
+    
+    <div class="panel">
+      <h3>Matches</h3>
+      <div id="matches-list"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Stream URLs</h3>
+    <div id="streams-list"></div>
+  </div>
+
+  <div class="panel">
+    <video id="video" controls></video>
+  </div>
+
+  <div class="panel">
+    <div><strong>API Response</strong></div>
+    <pre id="output"></pre>
+  </div>
+
+  <script>
+    const categoriesList = document.getElementById('categories-list');
+    const matchesList = document.getElementById('matches-list');
+    const streamsList = document.getElementById('streams-list');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const videoEl = document.getElementById('video');
+    
+    let selectedCategory = null;
+    let selectedMatch = null;
+    let hls = null;
+
+    function setStatus(message, type = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function logResponse(obj) {
+      outputEl.textContent = JSON.stringify(obj, null, 2);
+    }
+
+    function setLoading(element, loading) {
+      if (loading) {
+        element.disabled = true;
+        element.textContent = element.textContent.replace('Load', 'Loading...') + '...';
+      } else {
+        element.disabled = false;
+        element.textContent = element.textContent.replace('Loading...', 'Load').replace('...', '');
+      }
+    }
+
+    async function loadCategories() {
+      const btn = document.getElementById('loadCategories');
+      setLoading(btn, true);
+      setStatus('Loading categories...', 'loading');
+
+      try {
+        const res = await fetch('/v3/cricket/categories');
+        const data = await res.json();
+        
+        logResponse(data);
+        
+        if (data.ok) {
+          categoriesList.innerHTML = '';
+          data.data.forEach(category => {
+            const item = document.createElement('div');
+            item.className = 'category-item';
+            item.innerHTML = `
+              <div><strong>${category.name}</strong></div>
+              <div><small>Slug: ${category.slug}</small></div>
+              <div><small>URL: ${category.url}</small></div>
+            `;
+            item.onclick = () => selectCategory(category, item);
+            categoriesList.appendChild(item);
+          });
+          setStatus(`Loaded ${data.data.length} categories`, 'success');
+        } else {
+          setStatus(`Error: ${data.message}`, 'error');
+        }
+      } catch (error) {
+        setStatus(`Network error: ${error.message}`, 'error');
+        logResponse({ error: error.message });
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    async function loadAllData() {
+      const btn = document.getElementById('loadAllData');
+      setLoading(btn, true);
+      setStatus('Loading all cricket data (this may take a while)...', 'loading');
+
+      try {
+        const res = await fetch('/v3/cricket/all');
+        const data = await res.json();
+        
+        logResponse(data);
+        
+        if (data.ok) {
+          categoriesList.innerHTML = '';
+          matchesList.innerHTML = '';
+          
+          data.data.forEach(category => {
+            const item = document.createElement('div');
+            item.className = 'category-item';
+            item.innerHTML = `
+              <div><strong>${category.name}</strong></div>
+              <div><small>${category.matches ? category.matches.length : 0} matches</small></div>
+            `;
+            item.onclick = () => {
+              selectCategory(category, item);
+              displayMatches(category.matches || []);
+            };
+            categoriesList.appendChild(item);
+          });
+          
+          setStatus(`Loaded data for ${data.data.length} categories`, 'success');
+        } else {
+          setStatus(`Error: ${data.message}`, 'error');
+        }
+      } catch (error) {
+        setStatus(`Network error: ${error.message}`, 'error');
+        logResponse({ error: error.message });
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    async function selectCategory(category, element) {
+      // Update UI
+      document.querySelectorAll('.category-item').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedCategory = category;
+      
+      setStatus(`Loading matches for ${category.name}...`, 'loading');
+      
+      try {
+        const res = await fetch(`/v3/cricket/category/${category.slug}/matches`);
+        const data = await res.json();
+        
+        logResponse(data);
+        
+        if (data.ok) {
+          displayMatches(data.data);
+          setStatus(`Loaded ${data.data.length} matches for ${category.name}`, 'success');
+        } else {
+          setStatus(`Error loading matches: ${data.message}`, 'error');
+        }
+      } catch (error) {
+        setStatus(`Network error: ${error.message}`, 'error');
+        logResponse({ error: error.message });
+      }
+    }
+
+    function displayMatches(matches) {
+      matchesList.innerHTML = '';
+      
+      matches.forEach(match => {
+        const item = document.createElement('div');
+        item.className = 'match-item';
+        
+        let streamLinksHtml = '';
+        if (match.streamLinks && match.streamLinks.length > 0) {
+          streamLinksHtml = '<div class="stream-links">';
+          match.streamLinks.forEach(link => {
+            streamLinksHtml += `<span class="stream-link">${link.name}</span>`;
+          });
+          streamLinksHtml += '</div>';
+        }
+        
+        item.innerHTML = `
+          <div><strong>${match.title}</strong></div>
+          <div><small>URL: ${match.url}</small></div>
+          ${streamLinksHtml}
+        `;
+        item.onclick = () => selectMatch(match, item);
+        matchesList.appendChild(item);
+      });
+    }
+
+    async function selectMatch(match, element) {
+      // Update UI
+      document.querySelectorAll('.match-item').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedMatch = match;
+      
+      setStatus(`Extracting stream URLs for ${match.title}...`, 'loading');
+      
+      try {
+        const res = await fetch(`/v3/cricket/match/streams?matchUrl=${encodeURIComponent(match.url)}`);
+        const data = await res.json();
+        
+        logResponse(data);
+        
+        if (data.ok) {
+          displayStreams(data.data);
+          setStatus(`Found ${data.data.length} stream URLs`, 'success');
+        } else {
+          setStatus(`Error extracting streams: ${data.message}`, 'error');
+        }
+      } catch (error) {
+        setStatus(`Network error: ${error.message}`, 'error');
+        logResponse({ error: error.message });
+      }
+    }
+
+    function displayStreams(streams) {
+      streamsList.innerHTML = '';
+      
+      if (streams.length === 0) {
+        streamsList.innerHTML = '<div>No streams found</div>';
+        return;
+      }
+      
+      streams.forEach((stream, index) => {
+        const item = document.createElement('div');
+        item.className = 'stream-item';
+        item.innerHTML = `
+          <div>
+            <button onclick="playStream('${stream.url}', '${stream.format}')">
+              Play Stream ${index + 1}
+            </button>
+            <small>Format: ${stream.format} | Quality: ${stream.quality}</small>
+          </div>
+          <div><small>${stream.url}</small></div>
+        `;
+        streamsList.appendChild(item);
+      });
+    }
+
+    function playStream(streamUrl, format) {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      videoEl.load();
+
+      setStatus(`Playing stream: ${format}`, 'success');
+
+      if (format === 'hls' && window.Hls && window.Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(streamUrl);
+        hls.attachMedia(videoEl);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          videoEl.play().catch(() => {
+            setStatus('Failed to play stream (browser may block autoplay)', 'error');
+          });
+        });
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          setStatus(`HLS Error: ${data.details}`, 'error');
+        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl') || format === 'mp4') {
+        videoEl.src = streamUrl;
+        videoEl.play().catch(() => {
+          setStatus('Failed to play stream (browser may block autoplay)', 'error');
+        });
+      } else {
+        setStatus('Stream format not supported in this browser', 'error');
+      }
+    }
+
+    async function clearCache() {
+      setStatus('Clearing cache...', 'loading');
+      
+      try {
+        // This would require a cache-clearing endpoint
+        // For now, just reload the page
+        window.location.reload();
+      } catch (error) {
+        setStatus(`Error clearing cache: ${error.message}`, 'error');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('loadCategories').addEventListener('click', loadCategories);
+    document.getElementById('loadAllData').addEventListener('click', loadAllData);
+    document.getElementById('clearCache').addEventListener('click', clearCache);
+
+    // Make playStream available globally
+    window.playStream = playStream;
+
+    // Auto-load categories on page load
+    window.addEventListener('load', () => {
+      setStatus('Ready. Click "Load Categories" to begin.', 'info');
+    });
+  </script>
+</body>
+</html>

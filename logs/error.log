@@ -1,0 +1,2 @@
+{"timestamp":"2025-11-28T23:48:35.690Z","level":"ERROR","service":"catalog-proxy","message":"Operation failed after all retries","operation":"unknown","attempts":1,"maxRetries":3,"finalError":"Temporary failure","context":{}}
+{"timestamp":"2025-11-28T23:51:53.256Z","level":"ERROR","service":"catalog-proxy","message":"Operation failed after all retries","operation":"unknown","attempts":1,"maxRetries":3,"finalError":"Temporary failure","context":{}}

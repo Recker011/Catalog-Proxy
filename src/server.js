@@ -5,6 +5,7 @@ const puppeteer = require('puppeteer-core');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const { CricwatchScraper } = require('./cricwatch-scraper');
  
 const PORT = Number(process.env.PORT) || 4000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -58,11 +59,20 @@ function resolveChromeExecutablePath() {
   return candidates[0];
 }
 
+// Export for use in other modules
+module.exports.getChromeExecutablePath = resolveChromeExecutablePath;
+
 // ---------- LRU Cache for resolved streams ----------
 
 const cache = new LRUCache({
   max: 500,
   ttl: 1000 * 60 * 7 // 7 minutes
+});
+
+// Separate cache for cricket data (longer TTL since cricket matches change less frequently)
+const cricketCache = new LRUCache({
+  max: 100,
+  ttl: 1000 * 60 * 15 // 15 minutes
 });
 
 function buildCacheKey(params) {
@@ -79,9 +89,9 @@ function buildCacheKey(params) {
   return null;
 }
 
- // ---------- VidLink URL builder ----------
+ // ---------- Stream URL builder ----------
  
- function buildVidLinkUrl(params) {
+ function buildStreamUrl(params) {
    const { type } = params;
  
    if (type === 'movie') {
@@ -467,9 +477,9 @@ app.get('/stream', async (req, res) => {
     }
   }
 
-  let vidlinkUrl;
+  let streamUrl;
   try {
-    vidlinkUrl = buildVidLinkUrl(params);
+    streamUrl = buildStreamUrl(params);
   } catch (err) {
     const message = err && err.message ? String(err.message) : 'Invalid request';
     return res.status(400).json({
@@ -481,7 +491,7 @@ app.get('/stream', async (req, res) => {
   }
 
   try {
-    const result = await resolveStreamUrl(vidlinkUrl);
+    const result = await resolveStreamUrl(streamUrl);
 
     if (cacheKey) {
       cache.set(cacheKey, result);
@@ -506,7 +516,7 @@ app.get('/stream', async (req, res) => {
       errorCode = 'stream_not_found';
       status = 404;
       message =
-        'No playable stream could be found for this title. The upstream VidLink provider did not expose a usable .m3u8 URL.';
+        'No playable stream could be found for this title. The upstream provider did not expose a usable .m3u8 URL.';
     } else if (rawMessage.includes('No Chrome executable found')) {
       errorCode = 'browser_not_found';
       status = 500;
@@ -516,7 +526,7 @@ app.get('/stream', async (req, res) => {
       errorCode = 'upstream_timeout';
       status = 504;
       message =
-        'Timed out while waiting for VidLink to respond. The upstream site may be slow or temporarily unavailable.';
+        'Timed out while waiting for the upstream provider to respond. The upstream site may be slow or temporarily unavailable.';
     }
 
     return res.status(status).json({
@@ -650,6 +660,223 @@ app.get('/v2/stream', async (req, res) => {
   }
 });
 
+// ---------- V3 Cricket API Endpoints ----------
+
+app.get('/v3/cricket/categories', async (req, res) => {
+  const cacheKey = 'v3:cricket:categories';
+  const cached = cricketCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
+    return res.json({
+      ok: true,
+      data: cached.categories,
+      fromCache: true,
+      cachedAt: cached.cachedAt
+    });
+  }
+
+  const scraper = new CricwatchScraper();
+  
+  try {
+    const categories = await scraper.getCategories();
+    const cacheData = {
+      categories,
+      expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutes
+      cachedAt: Date.now()
+    };
+    
+    cricketCache.set(cacheKey, cacheData);
+    
+    return res.json({
+      ok: true,
+      data: categories,
+      fromCache: false
+    });
+  } catch (err) {
+    const rawMessage = err && err.message ? String(err.message) : 'Unknown error';
+    
+    return res.status(500).json({
+      ok: false,
+      error: 'scraping_error',
+      message: 'Failed to scrape cricket categories from cricwatch.io',
+      details: {
+        internalMessage: rawMessage
+      }
+    });
+  } finally {
+    await scraper.close();
+  }
+});
+
+app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
+  const { slug } = req.params;
+  const cacheKey = `v3:cricket:category:${slug}:matches`;
+  const cached = cricketCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
+    return res.json({
+      ok: true,
+      data: cached.matches,
+      fromCache: true,
+      cachedAt: cached.cachedAt
+    });
+  }
+
+  const scraper = new CricwatchScraper();
+  
+  try {
+    // First get categories to find the URL for this slug
+    const categories = await scraper.getCategories();
+    const category = categories.find(cat => cat.slug === slug);
+    
+    if (!category) {
+      return res.status(404).json({
+        ok: false,
+        error: 'category_not_found',
+        message: `Category with slug "${slug}" not found`,
+        details: {
+          availableSlugs: categories.map(cat => cat.slug)
+        }
+      });
+    }
+
+    const matches = await scraper.getMatchesFromCategory(category.url);
+    const cacheData = {
+      matches,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      cachedAt: Date.now()
+    };
+    
+    cricketCache.set(cacheKey, cacheData);
+    
+    return res.json({
+      ok: true,
+      data: matches,
+      fromCache: false
+    });
+  } catch (err) {
+    const rawMessage = err && err.message ? String(err.message) : 'Unknown error';
+    
+    return res.status(500).json({
+      ok: false,
+      error: 'scraping_error',
+      message: 'Failed to scrape cricket matches from category',
+      details: {
+        internalMessage: rawMessage,
+        categorySlug: slug
+      }
+    });
+  } finally {
+    await scraper.close();
+  }
+});
+
+app.get('/v3/cricket/match/streams', async (req, res) => {
+  const { matchUrl } = req.query;
+  
+  if (!matchUrl) {
+    return res.status(400).json({
+      ok: false,
+      error: 'validation_error',
+      message: 'Query parameter "matchUrl" is required',
+      details: {
+        missing: ['matchUrl']
+      }
+    });
+  }
+
+  const cacheKey = `v3:cricket:match:${Buffer.from(matchUrl).toString('base64')}:streams`;
+  const cached = cricketCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
+    return res.json({
+      ok: true,
+      data: cached.streams,
+      fromCache: true,
+      cachedAt: cached.cachedAt
+    });
+  }
+
+  const scraper = new CricwatchScraper();
+  
+  try {
+    const streams = await scraper.extractStreamUrls(matchUrl);
+    const cacheData = {
+      streams,
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes - streams expire quickly
+      cachedAt: Date.now()
+    };
+    
+    cricketCache.set(cacheKey, cacheData);
+    
+    return res.json({
+      ok: true,
+      data: streams,
+      fromCache: false
+    });
+  } catch (err) {
+    const rawMessage = err && err.message ? String(err.message) : 'Unknown error';
+    
+    return res.status(500).json({
+      ok: false,
+      error: 'scraping_error',
+      message: 'Failed to extract stream URLs from match page',
+      details: {
+        internalMessage: rawMessage,
+        matchUrl
+      }
+    });
+  } finally {
+    await scraper.close();
+  }
+});
+
+app.get('/v3/cricket/all', async (req, res) => {
+  const cacheKey = 'v3:cricket:all';
+  const cached = cricketCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
+    return res.json({
+      ok: true,
+      data: cached.data,
+      fromCache: true,
+      cachedAt: cached.cachedAt
+    });
+  }
+
+  const scraper = new CricwatchScraper();
+  
+  try {
+    const allData = await scraper.getAllCricketData();
+    const cacheData = {
+      data: allData,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      cachedAt: Date.now()
+    };
+    
+    cricketCache.set(cacheKey, cacheData);
+    
+    return res.json({
+      ok: true,
+      data: allData,
+      fromCache: false
+    });
+  } catch (err) {
+    const rawMessage = err && err.message ? String(err.message) : 'Unknown error';
+    
+    return res.status(500).json({
+      ok: false,
+      error: 'scraping_error',
+      message: 'Failed to scrape complete cricket data from cricwatch.io',
+      details: {
+        internalMessage: rawMessage
+      }
+    });
+  } finally {
+    await scraper.close();
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, status: 'up' });
 });
@@ -660,7 +887,7 @@ app.use((req, res) => {
     ok: false,
     error: 'not_found',
     message:
-      'Route not found. Available endpoints are: GET /stream, GET /v2/stream, GET /health, and static files under /public (e.g. /test-player.html).',
+      'Route not found. Available endpoints are: GET /stream, GET /v2/stream, GET /v3/cricket/categories, GET /v3/cricket/category/:slug/matches, GET /v3/cricket/match/streams, GET /v3/cricket/all, GET /health, and static files under /public (e.g. /test-player.html, /cricket-test.html).',
     details: {
       method: req.method,
       path: req.originalUrl
@@ -696,13 +923,13 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`VidLink proxy server listening on http://localhost:${PORT}`);
+  console.log(`CAT-alog Proxy server listening on http://localhost:${PORT}`);
 });
 
 server.on('error', (err) => {
   // eslint-disable-next-line no-console
   console.error(
-    'Failed to start VidLink proxy server. Check if port 4000 is already in use or if you lack permission to bind to this port.',
+    'Failed to start CAT-alog Proxy server. Check if port 4000 is already in use or if you lack permission to bind to this port.',
     err
   );
 });
