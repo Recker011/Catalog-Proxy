@@ -1,10 +1,10 @@
-# VidLink Proxy – API & Frontend Integration Guide
+# CAT-alog Proxy – API & Frontend Integration Guide
 
 This document describes how to integrate your frontend with the VidLink proxy server implemented in [`src/server.js`](src/server.js) and tested with [`public/test-player.html`](public/test-player.html).
 
 ## 1. Overview
 
-The VidLink proxy is a small Node/Express service that:
+The CAT-alog proxy is a small Node/Express service that:
 
 - Accepts movie / TV / anime identifiers from your frontend.
 - Uses headless Chrome (via [`resolveStreamUrl()`](src/server.js:108)) to resolve a playable `.m3u8` stream from `vidlink.pro`.
