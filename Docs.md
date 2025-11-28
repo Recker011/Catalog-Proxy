@@ -10,7 +10,7 @@ The VidLink proxy is a small Node/Express service that:
 - Uses headless Chrome (via [`resolveStreamUrl()`](src/server.js:108)) to resolve a playable `.m3u8` stream from `vidlink.pro`.
 - Returns a short‑lived, direct HLS URL that you can feed into your own video player.
 
-All responses are JSON. The primary endpoint is `GET /stream`.
+All responses are JSON. The primary v1 endpoint is `GET /stream`. A provider‑aware v2 endpoint is available at `GET /v2/stream` with support for multiple upstreams (e.g. VidLink, Filmex).
 
 Default listen port is **4000** (configurable via the `PORT` environment variable).
 
@@ -52,9 +52,54 @@ In production you should typically:
 - Add your own auth / API key middleware around the `/stream` route, and/or
 - Restrict CORS to known origins.
 
-## 4. Endpoint: `GET /stream`
+## 4. Endpoint: `GET /v2/stream` (multi‑provider)
+
+The v2 endpoint exposes the same core functionality as `/stream` but lets you choose an upstream provider via a `provider` query parameter.
+
+Supported providers (see [`PROVIDERS`](src/server.js:155)):
+
+- `vidlink` – uses `https://vidlink.pro` (JWPlayer‑based, original implementation).
+- `filmex` – uses `https://fmovies4u.com` (Filmex embeds for TMDB movie / TV IDs).
+
+```http
+GET /v2/stream?type=movie&provider=filmex&tmdbId=533535 HTTP/1.1
+Host: localhost:4000
+```
+
+If `provider` is omitted, it defaults to `vidlink` (see [`DEFAULT_PROVIDER`](src/server.js:108)).
+
+> Note: `filmex` currently supports only `movie` and `tv` types. Requests with `type=anime&provider=filmex` will fail validation.
+
+### 4.1. Query parameters
+
+`/v2/stream` accepts the same type‑specific identifiers as `/stream` (see section 5), plus:
+
+- `provider` **(optional)** – one of: `vidlink`, `filmex`. Defaults to `vidlink`.
+
+### 4.2. Response shape, caching and errors
+
+Response JSON, cache behaviour, and error normalization are the same as `/stream` (see sections 5.3–5.5), with one addition: successful v2 responses and error payloads include the resolved `provider` field for debugging.
+
+Example success:
+
+```json
+{
+  "ok": true,
+  "url": "https://example.cdn.com/path/to/master.m3u8",
+  "expiresAt": 1732780800000,
+  "format": "hls",
+  "fromCache": false,
+  "provider": "filmex"
+}
+```
+
+---
+
+## 5. Endpoint: `GET /stream`
 
 Resolve a short‑lived video stream URL based on a movie / TV / anime identifier.
+
+This is the original **v1** interface and always uses the VidLink provider internally. A v2 endpoint at `GET /v2/stream` supports the same parameters plus an additional `provider` query parameter (e.g. `vidlink`, `filmex`) and can route to different upstream providers. The response shape is otherwise equivalent.
 
 ### 4.1. Query parameters
 
@@ -360,7 +405,7 @@ export function VideoPlayer() {
 
 ## 8. Using the built‑in test player
 
-The repository ships with a ready‑made test page at [`public/test-player.html`](public/test-player.html), served by Express via [`app.use(express.static(PUBLIC_DIR))`](src/server.js:245).
+The repository ships with a ready‑made test page at [`public/test-player.html`](public/test-player.html), served by Express via [`app.use(express.static(PUBLIC_DIR))`](src/server.js:345).
 
 Once the server is running:
 
@@ -371,7 +416,7 @@ Once the server is running:
 
 The test page:
 
-- Sends a request to `/stream` using `fetch`.
+- Sends a request to `/v2/stream` using `fetch`, including the selected `provider` (e.g. `vidlink`, `vidsrc`).
 - Displays the raw JSON response in the “Last /stream response” panel.
 - Uses Hls.js to play the resolved `url` inside a `<video>` element, falling back to native HLS when applicable.
 

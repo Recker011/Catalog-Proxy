@@ -79,33 +79,121 @@ function buildCacheKey(params) {
   return null;
 }
 
-// ---------- VidLink URL builder ----------
-
-function buildVidLinkUrl(params) {
-  const { type } = params;
-
-  if (type === 'movie') {
-    return `https://vidlink.pro/movie/${encodeURIComponent(params.tmdbId)}?player=jw`;
-  }
-
-  if (type === 'tv') {
-    return `https://vidlink.pro/tv/${encodeURIComponent(params.tmdbId)}/${encodeURIComponent(
-      params.season
-    )}/${encodeURIComponent(params.episode)}?player=jw`;
-  }
-
-  if (type === 'anime') {
-    return `https://vidlink.pro/anime/${encodeURIComponent(params.malId)}/${encodeURIComponent(
-      params.number
-    )}/${encodeURIComponent(params.subOrDub)}?player=jw`;
-  }
-
-  throw new Error(`Unsupported type: ${type}`);
-}
+ // ---------- VidLink URL builder ----------
+ 
+ function buildVidLinkUrl(params) {
+   const { type } = params;
+ 
+   if (type === 'movie') {
+     return `https://vidlink.pro/movie/${encodeURIComponent(params.tmdbId)}?player=jw`;
+   }
+ 
+   if (type === 'tv') {
+     return `https://vidlink.pro/tv/${encodeURIComponent(params.tmdbId)}/${encodeURIComponent(
+       params.season
+     )}/${encodeURIComponent(params.episode)}?player=jw`;
+   }
+ 
+   if (type === 'anime') {
+     return `https://vidlink.pro/anime/${encodeURIComponent(params.malId)}/${encodeURIComponent(
+       params.number
+     )}/${encodeURIComponent(params.subOrDub)}?player=jw`;
+   }
+ 
+   throw new Error(`Unsupported type: ${type}`);
+ }
+ 
+ // ---------- Multi-provider configuration (v2) ----------
+ 
+ const DEFAULT_PROVIDER = 'vidlink';
+ const SUPPORTED_PROVIDERS = ['vidlink', 'filmex'];
+ 
+ const VIDLINK_BASE_URL = 'https://vidlink.pro';
+ const FILMEX_BASE_URL = (process.env.FILMEX_BASE_URL || 'https://fmovies4u.com').replace(
+   /\/+$/,
+   ''
+ );
+ 
+ function buildFilmexUrl(params) {
+   const { type } = params;
+ 
+   if (type === 'anime') {
+     throw new Error('Provider "filmex" does not currently support type "anime" in this proxy.');
+   }
+ 
+   if (type === 'movie') {
+     if (!params.tmdbId) {
+       throw new Error('For type "movie" you must provide the "tmdbId" query parameter.');
+     }
+     return `${FILMEX_BASE_URL}/embed/tmdb-movie-${encodeURIComponent(params.tmdbId)}`;
+   }
+ 
+   if (type === 'tv') {
+     const missing = [];
+     if (!params.tmdbId) missing.push('tmdbId');
+     if (!params.season) missing.push('season');
+     if (!params.episode) missing.push('episode');
+ 
+     if (missing.length) {
+       throw new Error(
+         'For type "tv" you must provide the "tmdbId", "season" and "episode" query parameters.'
+       );
+     }
+ 
+     return `${FILMEX_BASE_URL}/embed/tmdb-tv-${encodeURIComponent(
+       params.tmdbId
+     )}/${encodeURIComponent(params.season)}/${encodeURIComponent(params.episode)}`;
+   }
+ 
+   throw new Error(`Unsupported type for filmex provider: ${type}`);
+ }
+ 
+ const PROVIDERS = {
+   vidlink: {
+     id: 'vidlink',
+     buildUrl(params) {
+       return buildVidLinkUrl(params);
+     },
+     getResolveOptions() {
+       return {
+         referer: `${VIDLINK_BASE_URL}/`,
+         origin: VIDLINK_BASE_URL
+       };
+     }
+   },
+   filmex: {
+     id: 'filmex',
+     buildUrl(params) {
+       return buildFilmexUrl(params);
+     },
+     getResolveOptions() {
+       return {
+         referer: `${FILMEX_BASE_URL}/`,
+         origin: FILMEX_BASE_URL
+       };
+     }
+   }
+ };
+ 
+ function buildCacheKeyV2(params) {
+   const provider = (params.provider || DEFAULT_PROVIDER).toLowerCase();
+   const { type } = params;
+ 
+   if (type === 'movie') {
+     return `v2:${provider}:movie:${params.tmdbId}`;
+   }
+   if (type === 'tv') {
+     return `v2:${provider}:tv:${params.tmdbId}:${params.season}:${params.episode}`;
+   }
+   if (type === 'anime') {
+     return `v2:${provider}:anime:${params.malId}:${params.number}:${params.subOrDub}`;
+   }
+   return null;
+ }
 
 // ---------- Puppeteer-based stream resolver ----------
 
-async function resolveStreamUrl(vidlinkUrl) {
+async function resolveStreamUrl(pageUrl, options = {}) {
   const executablePath = resolveChromeExecutablePath();
 
   const browser = await puppeteer.launch({
@@ -122,6 +210,9 @@ async function resolveStreamUrl(vidlinkUrl) {
   let page;
   let streamUrl = null;
 
+  const referer = options.referer || `${VIDLINK_BASE_URL}/`;
+  const origin = options.origin || VIDLINK_BASE_URL;
+
   try {
     page = await browser.newPage();
 
@@ -131,8 +222,8 @@ async function resolveStreamUrl(vidlinkUrl) {
     );
 
     await page.setExtraHTTPHeaders({
-      Referer: 'https://vidlink.pro/',
-      Origin: 'https://vidlink.pro'
+      Referer: referer,
+      Origin: origin
     });
 
     await page.setRequestInterception(true);
@@ -164,22 +255,13 @@ async function resolveStreamUrl(vidlinkUrl) {
 
         if (!looksLikeHls) return;
 
-        const contentLength = headers['content-length']
-          ? parseInt(headers['content-length'], 10)
-          : null;
-
-        // Filter out tiny/placeholder manifests if content-length is known
-        if (contentLength !== null && contentLength < 1024) {
-          return;
-        }
-
         streamUrl = url;
       } catch (e) {
         // Ignore response inspection errors
       }
     });
 
-    await page.goto(vidlinkUrl, {
+    await page.goto(pageUrl, {
       waitUntil: 'networkidle2',
       timeout: 12000
     });
@@ -236,14 +318,28 @@ async function resolveStreamUrl(vidlinkUrl) {
   }
 }
 
-// ---------- Express app & routing ----------
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Serve static test frontend (e.g. /test-player.html)
-app.use(express.static(PUBLIC_DIR));
+ // ---------- Express app & routing ----------
+ 
+ const app = express();
+ app.use(cors());
+ app.use(express.json());
+ 
+ // Simple request logging middleware
+ app.use((req, res, next) => {
+   const start = Date.now();
+ 
+   res.on('finish', () => {
+     const durationMs = Date.now() - start;
+     console.log(
+       `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs}ms)`
+     );
+   });
+ 
+   next();
+ });
+ 
+ // Serve static test frontend (e.g. /test-player.html)
+ app.use(express.static(PUBLIC_DIR));
 
 function validateQuery(query) {
   const type = (query.type || '').toLowerCase();
@@ -434,6 +530,126 @@ app.get('/stream', async (req, res) => {
   }
 });
 
+app.get('/v2/stream', async (req, res) => {
+  const validation = validateQuery(req.query);
+  if (!validation.ok) {
+    return res.status(400).json(validation);
+  }
+
+  const type = req.query.type.toLowerCase();
+  const provider = (req.query.provider || DEFAULT_PROVIDER).toLowerCase();
+
+  if (!SUPPORTED_PROVIDERS.includes(provider)) {
+    const message = `Query parameter "provider" must be one of: ${SUPPORTED_PROVIDERS.join(', ')}.`;
+    return res.status(400).json({
+      ok: false,
+      error: 'validation_error',
+      message,
+      debug: message,
+      details: {
+        allowedProviders: SUPPORTED_PROVIDERS,
+        receivedProvider: req.query.provider
+      }
+    });
+  }
+
+  const providerImpl = PROVIDERS[provider];
+
+  const params = {
+    type,
+    provider,
+    tmdbId: req.query.tmdbId,
+    season: req.query.season,
+    episode: req.query.episode,
+    malId: req.query.malId,
+    number: req.query.number,
+    subOrDub: req.query.subOrDub ? String(req.query.subOrDub).toLowerCase() : undefined
+  };
+
+  const cacheKey = buildCacheKeyV2(params);
+  if (cacheKey) {
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
+      return res.json({
+        ok: true,
+        url: cached.url,
+        expiresAt: cached.expiresAt,
+        format: cached.format,
+        fromCache: true,
+        provider
+      });
+    }
+  }
+
+  let upstreamPageUrl;
+  try {
+    upstreamPageUrl = providerImpl.buildUrl(params);
+  } catch (err) {
+    const message = err && err.message ? String(err.message) : 'Invalid request';
+    return res.status(400).json({
+      ok: false,
+      error: 'validation_error',
+      message,
+      debug: message
+    });
+  }
+
+  try {
+    const resolveOptions = providerImpl.getResolveOptions
+      ? providerImpl.getResolveOptions(params)
+      : undefined;
+
+    const result = await resolveStreamUrl(upstreamPageUrl, resolveOptions || {});
+
+    if (cacheKey) {
+      cache.set(cacheKey, result);
+    }
+
+    return res.json({
+      ok: true,
+      url: result.url,
+      expiresAt: result.expiresAt,
+      format: result.format,
+      fromCache: false,
+      provider
+    });
+  } catch (err) {
+    const rawMessage = err && err.message ? String(err.message) : 'Unknown error';
+
+    let errorCode = 'internal_error';
+    let status = 500;
+    let message =
+      'Unexpected error while trying to resolve the stream. See "details.internalMessage" for more information.';
+
+    if (rawMessage.startsWith('stream_not_found')) {
+      errorCode = 'stream_not_found';
+      status = 404;
+      message =
+        'No playable stream could be found for this title. The upstream provider did not expose a usable .m3u8 URL.';
+    } else if (rawMessage.includes('No Chrome executable found')) {
+      errorCode = 'browser_not_found';
+      status = 500;
+      message =
+        'Chrome/Chromium browser could not be found on this machine. Install Chrome or set the CHROME_EXECUTABLE or CHROME_PATH environment variable to a valid browser binary.';
+    } else if (rawMessage.toLowerCase().includes('timeout')) {
+      errorCode = 'upstream_timeout';
+      status = 504;
+      message =
+        'Timed out while waiting for the upstream site to respond. The upstream site may be slow or temporarily unavailable.';
+    }
+
+    return res.status(status).json({
+      ok: false,
+      error: errorCode,
+      message,
+      details: {
+        internalMessage: rawMessage,
+        provider
+      }
+    });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, status: 'up' });
 });
@@ -444,7 +660,7 @@ app.use((req, res) => {
     ok: false,
     error: 'not_found',
     message:
-      'Route not found. Available endpoints are: GET /stream, GET /health, and static files under /public (e.g. /test-player.html).',
+      'Route not found. Available endpoints are: GET /stream, GET /v2/stream, GET /health, and static files under /public (e.g. /test-player.html).',
     details: {
       method: req.method,
       path: req.originalUrl

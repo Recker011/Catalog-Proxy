@@ -91,6 +91,15 @@
         </div>
         <div>
           <label>
+            Provider (v2)
+            <select id="provider" name="provider">
+              <option value="vidlink" selected>VidLink</option>
+              <option value="filmex">Filmex (fmovies4u)</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>
             TMDB ID (movie / tv)
             <input id="tmdbId" name="tmdbId" placeholder="786892" />
           </label>
@@ -147,6 +156,7 @@
   <script>
     const form = document.getElementById('stream-form');
     const typeEl = document.getElementById('type');
+    const providerEl = document.getElementById('provider');
     const tmdbIdEl = document.getElementById('tmdbId');
     const seasonEl = document.getElementById('season');
     const episodeEl = document.getElementById('episode');
@@ -176,8 +186,10 @@
       setLoading(true);
       try {
         const type = typeEl.value;
+        const provider = (providerEl.value || 'vidlink').toLowerCase();
         const params = new URLSearchParams();
         params.set('type', type);
+        params.set('provider', provider);
 
         if (type === 'movie') {
           if (!tmdbIdEl.value) {
@@ -195,12 +207,15 @@
           if (!malIdEl.value || !numberEl.value || !subOrDubEl.value) {
             throw new Error('malId, number and subOrDub are required for anime');
           }
+          if (provider === 'filmex') {
+            throw new Error('Provider "filmex" does not support anime. Please use VidLink for anime.');
+          }
           params.set('malId', malIdEl.value.trim());
           params.set('number', numberEl.value.trim());
           params.set('subOrDub', subOrDubEl.value.trim().toLowerCase());
         }
 
-        const url = '/stream?' + params.toString();
+        const url = '/v2/stream?' + params.toString();
 
         let data;
         try {
