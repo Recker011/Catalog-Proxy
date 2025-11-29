@@ -162,7 +162,7 @@ function buildCacheKey(params) {
    vidlink: {
      id: 'vidlink',
      buildUrl(params) {
-       return buildVidLinkUrl(params);
+       return buildStreamUrl(params);
      },
      getResolveOptions() {
        return {
@@ -878,7 +878,174 @@ app.get('/v3/cricket/all', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, status: 'up' });
+  res.json({
+    ok: true,
+    status: 'up',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: '3.0.0'
+  });
+});
+
+// ---------- Dashboard Management Endpoints ----------
+
+app.get('/dashboard/status', (req, res) => {
+  const cacheStats = {
+    media: {
+      size: cache.size,
+      maxSize: cache.max,
+      ttl: cache.ttl
+    },
+    cricket: {
+      size: cricketCache.size,
+      maxSize: cricketCache.max,
+      ttl: cricketCache.ttl
+    }
+  };
+
+  res.json({
+    ok: true,
+    server: {
+      status: 'up',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      timestamp: new Date().toISOString()
+    },
+    cache: cacheStats,
+    endpoints: {
+      media: ['/stream', '/v2/stream'],
+      cricket: ['/v3/cricket/categories', '/v3/cricket/category/:slug/matches', '/v3/cricket/match/streams', '/v3/cricket/all'],
+      utility: ['/health', '/dashboard/status']
+    }
+  });
+});
+
+app.delete('/dashboard/cache', (req, res) => {
+  const { type } = req.query;
+  
+  try {
+    if (type === 'media' || type === 'all') {
+      cache.clear();
+    }
+    if (type === 'cricket' || type === 'all') {
+      cricketCache.clear();
+    }
+    
+    res.json({
+      ok: true,
+      message: `Cache cleared for type: ${type || 'all'}`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: 'cache_clear_error',
+      message: 'Failed to clear cache',
+      details: {
+        internalMessage: error.message
+      }
+    });
+  }
+});
+
+app.get('/dashboard/cache/entries', (req, res) => {
+  const { type } = req.query;
+  
+  try {
+    let entries = [];
+    
+    if (type === 'media' || type === 'all') {
+      const mediaEntries = [];
+      cache.dump().forEach(([key, value]) => {
+        mediaEntries.push({
+          key,
+          ttl: value.ttl,
+          size: JSON.stringify(value).length,
+          type: 'media'
+        });
+      });
+      entries.push(...mediaEntries);
+    }
+    
+    if (type === 'cricket' || type === 'all') {
+      const cricketEntries = [];
+      cricketCache.dump().forEach(([key, value]) => {
+        cricketEntries.push({
+          key,
+          ttl: value.ttl,
+          size: JSON.stringify(value).length,
+          type: 'cricket'
+        });
+      });
+      entries.push(...cricketEntries);
+    }
+    
+    res.json({
+      ok: true,
+      entries: entries.slice(0, 100), // Limit to 100 entries
+      total: entries.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: 'cache_list_error',
+      message: 'Failed to list cache entries',
+      details: {
+        internalMessage: error.message
+      }
+    });
+  }
+});
+
+app.post('/dashboard/test/chrome', (req, res) => {
+  const { chromePath } = req.body;
+  
+  try {
+    // Test Chrome path by temporarily updating the candidates
+    const originalCandidates = getChromeExecutableCandidates();
+    
+    if (chromePath) {
+      // Add the custom path to candidates for testing
+      const testCandidates = [chromePath, ...originalCandidates];
+      
+      if (fs.existsSync(chromePath)) {
+        res.json({
+          ok: true,
+          message: 'Chrome executable found at specified path',
+          path: chromePath,
+          exists: true
+        });
+      } else {
+        res.json({
+          ok: false,
+          error: 'chrome_not_found',
+          message: 'Chrome executable not found at specified path',
+          path: chromePath,
+          exists: false
+        });
+      }
+    } else {
+      // Test auto-detection
+      const detectedPath = resolveChromeExecutablePath();
+      res.json({
+        ok: true,
+        message: 'Chrome auto-detection successful',
+        path: detectedPath,
+        exists: true
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: 'chrome_test_error',
+      message: 'Failed to test Chrome path',
+      details: {
+        internalMessage: error.message
+      }
+    });
+  }
 });
 
 // Fallback 404 for unknown routes

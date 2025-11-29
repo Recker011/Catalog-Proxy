@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CAT-alog Proxy - Unified Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-primary: #0b1120;
+      --bg-secondary: #020617;
+      --bg-tertiary: #1e293b;
+      --border-color: #334155;
+      --text-primary: #e5e7eb;
+      --text-secondary: #9ca3af;
+      --accent-primary: #2563eb;
+      --accent-secondary: #3b82f6;
+      --success: #10b981;
+      --warning: #fbbf24;
+      --error: #ef4444;
+      --danger: #dc2626;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --bg-tertiary: #e2e8f0;
+      --border-color: #cbd5e1;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --accent-primary: #2563eb;
+      --accent-secondary: #3b82f6;
+      --success: #10b981;
+      --warning: #fbbf24;
+      --error: #ef4444;
+      --danger: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Header Styles */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* Navigation Tabs */
+    .nav-tabs {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 2rem;
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .nav-tab {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-tertiary);
+    }
+
+    .nav-tab.active {
+      color: var(--accent-primary);
+      border-bottom-color: var(--accent-primary);
+      background: var(--bg-tertiary);
+    }
+
+    /* Main Content */
+    .main-content {
+      padding: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Panel Styles */
+    .panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .panel h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+    }
+
+    /* Button Styles */
+    button {
+      background: var(--accent-primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-secondary);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button.secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    button.success {
+      background: var(--success);
+    }
+
+    button.small {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    /* Form Styles */
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    input, select, textarea {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    /* Video Player */
+    video {
+      width: 100%;
+      max-width: 900px;
+      background: black;
+      border-radius: 8px;
+    }
+
+    /* Status Messages */
+    .status {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin: 0.5rem 0;
+      font-size: 0.9rem;
+      border: 1px solid;
+    }
+
+    .status.info {
+      background: rgba(37, 99, 235, 0.1);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    .status.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .status.warning {
+      background: rgba(251, 191, 36, 0.1);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .status.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--error);
+      color: var(--error);
+    }
+
+    .status.loading {
+      background: rgba(37, 99, 235, 0.1);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+      position: relative;
+    }
+
+    .status.loading::before {
+      content: '';
+      position: absolute;
+      left: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--accent-primary);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
+
+    /* Code/JSON Display */
+    pre {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 1rem;
+      max-height: 400px;
+      overflow: auto;
+      font-size: 0.85rem;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      line-height: 1.4;
+    }
+
+    /* Grid Layouts */
+    .grid {
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+
+    /* List Items */
+    .list-item {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 0.5rem 0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .list-item:hover {
+      background: var(--bg-tertiary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .list-item.selected {
+      background: var(--accent-primary);
+      border-color: var(--accent-secondary);
+      color: white;
+    }
+
+    .list-item-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .list-item-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .list-item.selected .list-item-subtitle {
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Stream Links */
+    .stream-links {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .stream-link {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      transition: all 0.2s;
+    }
+
+    .stream-link:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.5rem;
+      cursor: pointer;
+      color: var(--text-primary);
+      font-size: 1.2rem;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .header {
+        padding: 1rem;
+      }
+
+      .main-content {
+        padding: 1rem;
+      }
+
+      .nav-tabs {
+        padding: 0 1rem;
+      }
+
+      .nav-tab {
+        padding: 0.75rem 1rem;
+        font-size: 0.85rem;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Utility Classes */
+    .hidden {
+      display: none !important;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mt-3 { margin-top: 1.5rem; }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+    .mb-3 { margin-bottom: 1.5rem; }
+
+    .flex {
+      display: flex;
+    }
+
+    .flex-center {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .gap-1 { gap: 0.5rem; }
+    .gap-2 { gap: 1rem; }
+    .gap-3 { gap: 1.5rem; }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    /* Health Status */
+    .health-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+
+    .health-indicator.healthy {
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+    }
+
+    .health-indicator.unhealthy {
+      background: var(--error);
+      box-shadow: 0 0 6px var(--error);
+    }
+
+    .health-indicator.warning {
+      background: var(--warning);
+      box-shadow: 0 0 6px var(--warning);
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+</head>
+<body data-theme="dark">
+  <!-- Header -->
+  <header class="header">
+    <h1>
+      🎬 CAT-alog Proxy Dashboard
+    </h1>
+    <div class="header-controls">
+      <div class="flex-center gap-2">
+        <span class="health-indicator" id="server-health"></span>
+        <span id="server-status">Checking...</span>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="media-streaming">📺 Media Streaming</button>
+    <button class="nav-tab" data-tab="cricket-streaming">🏏 Cricket Streaming</button>
+    <button class="nav-tab" data-tab="status-monitoring">📊 Status Monitoring</button>
+    <button class="nav-tab" data-tab="cache-management">💾 Cache Management</button>
+    <button class="nav-tab" data-tab="api-explorer">🔧 API Explorer</button>
+    <button class="nav-tab" data-tab="settings">⚙️ Settings</button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Media Streaming Tab -->
+    <div class="tab-content active" id="media-streaming">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📺 Media Stream Resolver</h3>
+          <div id="media-status" class="status info">Ready to resolve streams</div>
+        </div>
+        
+        <form id="media-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="media-type">Content Type</label>
+              <select id="media-type" name="type">
+                <option value="movie" selected>Movie</option>
+                <option value="tv">TV Series</option>
+                <option value="anime">Anime</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="media-provider">Provider</label>
+              <select id="media-provider" name="provider">
+                <option value="vidlink" selected>VidLink</option>
+                <option value="filmex">Filmex (fmovies4u)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tmdb-id">TMDB ID (Movie/TV)</label>
+              <input id="tmdb-id" name="tmdbId" placeholder="786892" value="786892" />
+            </div>
+            <div class="form-group">
+              <label for="season">Season (TV)</label>
+              <input id="season" name="season" placeholder="1" />
+            </div>
+            <div class="form-group">
+              <label for="episode">Episode (TV)</label>
+              <input id="episode" name="episode" placeholder="1" />
+            </div>
+            <div class="form-group">
+              <label for="mal-id">MAL ID (Anime)</label>
+              <input id="mal-id" name="malId" placeholder="12345" />
+            </div>
+            <div class="form-group">
+              <label for="episode-number">Episode Number (Anime)</label>
+              <input id="episode-number" name="number" placeholder="1" />
+            </div>
+            <div class="form-group">
+              <label for="sub-dub">Sub or Dub (Anime)</label>
+              <select id="sub-dub" name="subOrDub">
+                <option value="sub">Sub</option>
+                <option value="dub">Dub</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" id="media-resolve-btn">Resolve & Play</button>
+            <button type="button" class="secondary" id="media-clear-btn">Clear</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🎬 Video Player</h3>
+        </div>
+        <video id="media-video" controls></video>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📡 API Response</h3>
+          <button class="small secondary" id="media-clear-response">Clear</button>
+        </div>
+        <pre id="media-response">No response yet...</pre>
+      </div>
+    </div>
+
+    <!-- Cricket Streaming Tab -->
+    <div class="tab-content" id="cricket-streaming">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🏏 Cricket Stream Manager</h3>
+          <div id="cricket-status" class="status info">Ready to load cricket data</div>
+        </div>
+        
+        <div class="flex gap-2 mb-2">
+          <button id="load-categories">Load Categories</button>
+          <button id="load-all-cricket" class="secondary">Load All Cricket Data</button>
+          <button id="clear-cricket-cache" class="danger">Clear Cache</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>📂 Categories</h3>
+            <span id="categories-count">0 categories</span>
+          </div>
+          <div id="categories-list"></div>
+        </div>
+        
+        <div class="panel">
+          <div class="panel-header">
+            <h3>🏟️ Matches</h3>
+            <span id="matches-count">0 matches</span>
+          </div>
+          <div id="matches-list"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📺 Stream URLs</h3>
+          <span id="streams-count">0 streams</span>
+        </div>
+        <div id="streams-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🎬 Cricket Video Player</h3>
+        </div>
+        <video id="cricket-video" controls></video>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📡 Cricket API Response</h3>
+          <button class="small secondary" id="cricket-clear-response">Clear</button>
+        </div>
+        <pre id="cricket-response">No response yet...</pre>
+      </div>
+    </div>
+
+    <!-- Status Monitoring Tab -->
+    <div class="tab-content" id="status-monitoring">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🖥️ System Status</h3>
+          <button id="refresh-status">Refresh</button>
+        </div>
+        
+        <div class="grid grid-3">
+          <div class="panel">
+            <h4>🌐 Server Health</h4>
+            <div id="server-health-details">
+              <div class="status loading">Checking server status...</div>
+            </div>
+          </div>
+          
+          <div class="panel">
+            <h4>💾 Cache Status</h4>
+            <div id="cache-status-details">
+              <div class="status loading">Checking cache status...</div>
+            </div>
+          </div>
+          
+          <div class="panel">
+            <h4>🔗 External Services</h4>
+            <div id="external-status-details">
+              <div class="status loading">Checking external services...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📊 Performance Metrics</h3>
+          <button id="refresh-metrics">Refresh Metrics</button>
+        </div>
+        <div id="performance-metrics">
+          <div class="status info">Click "Refresh Metrics" to load performance data</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📝 Recent Activity Log</h3>
+          <button id="clear-activity-log">Clear Log</button>
+        </div>
+        <div id="activity-log">
+          <div class="status info">No recent activity</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cache Management Tab -->
+    <div class="tab-content" id="cache-management">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>💾 Cache Management</h3>
+          <div class="flex gap-2">
+            <button id="refresh-cache-info">Refresh Info</button>
+            <button id="clear-all-cache" class="danger">Clear All Cache</button>
+          </div>
+        </div>
+        
+        <div class="grid grid-2">
+          <div class="panel">
+            <h4>📺 Media Cache</h4>
+            <div id="media-cache-info">
+              <div class="status loading">Loading media cache info...</div>
+            </div>
+          </div>
+          
+          <div class="panel">
+            <h4>🏏 Cricket Cache</h4>
+            <div id="cricket-cache-info">
+              <div class="status loading">Loading cricket cache info...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🔍 Cache Entries</h3>
+          <div class="flex gap-2">
+            <select id="cache-type-filter">
+              <option value="all">All Cache Types</option>
+              <option value="media">Media Cache</option>
+              <option value="cricket">Cricket Cache</option>
+            </select>
+            <button id="filter-cache-entries">Filter</button>
+          </div>
+        </div>
+        <div id="cache-entries">
+          <div class="status info">Select a cache type and click "Filter" to view entries</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Explorer Tab -->
+    <div class="tab-content" id="api-explorer">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🔧 API Explorer</h3>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="api-method">HTTP Method</label>
+            <select id="api-method">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="api-endpoint">Endpoint</label>
+            <input id="api-endpoint" placeholder="/stream" value="/health" />
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="api-params">Query Parameters (JSON)</label>
+          <textarea id="api-params" rows="3" placeholder='{"type": "movie", "tmdbId": "786892"}'></textarea>
+        </div>
+        
+        <div class="flex gap-2">
+          <button id="api-execute">Execute Request</button>
+          <button id="api-clear" class="secondary">Clear</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>📡 API Response</h3>
+          <div id="api-response-status"></div>
+        </div>
+        <pre id="api-response">No response yet...</pre>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="tab-content" id="settings">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>⚙️ Dashboard Settings</h3>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="auto-refresh">Auto Refresh Interval (seconds)</label>
+            <input id="auto-refresh" type="number" min="5" max="300" value="30" />
+          </div>
+          <div class="form-group">
+            <label for="log-level">Log Level</label>
+            <select id="log-level">
+              <option value="error">Error Only</option>
+              <option value="warn">Warnings & Errors</option>
+              <option value="info" selected>Info & Above</option>
+              <option value="debug">Debug & Above</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cache-ttl">Default Cache TTL (minutes)</label>
+            <input id="cache-ttl" type="number" min="1" max="1440" value="15" />
+          </div>
+        </div>
+        
+        <div class="flex gap-2">
+          <button id="save-settings" class="success">Save Settings</button>
+          <button id="reset-settings" class="secondary">Reset to Defaults</button>
+          <button id="export-settings" class="secondary">Export Settings</button>
+          <button id="import-settings" class="secondary">Import Settings</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3>🔧 Advanced Settings</h3>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="chrome-path">Chrome Executable Path</label>
+            <input id="chrome-path" placeholder="Auto-detect" />
+          </div>
+          <div class="form-group">
+            <label for="request-timeout">Request Timeout (ms)</label>
+            <input id="request-timeout" type="number" min="1000" max="60000" value="12000" />
+          </div>
+        </div>
+        
+        <div class="flex gap-2">
+          <button id="save-advanced-settings" class="success">Save Advanced</button>
+          <button id="test-chrome" class="secondary">Test Chrome Path</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
