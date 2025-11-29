@@ -514,7 +514,7 @@
   <!-- Navigation Tabs -->
   <nav class="nav-tabs">
     <button class="nav-tab active" data-tab="media-streaming">📺 Media Streaming</button>
-    <button class="nav-tab" data-tab="cricket-streaming">🏏 Cricket Streaming</button>
+    <button class="nav-tab" data-tab="cricket-streaming">⚽ Sports Streaming</button>
     <button class="nav-tab" data-tab="status-monitoring">📊 Status Monitoring</button>
     <button class="nav-tab" data-tab="cache-management">💾 Cache Management</button>
     <button class="nav-tab" data-tab="api-explorer">🔧 API Explorer</button>
@@ -603,13 +603,13 @@
     <div class="tab-content" id="cricket-streaming">
       <div class="panel">
         <div class="panel-header">
-          <h3>🏏 Cricket Stream Manager</h3>
-          <div id="cricket-status" class="status info">Ready to load cricket data</div>
+          <h3>⚽ Sports Stream Manager</h3>
+          <div id="cricket-status" class="status info">Ready to load sports data</div>
         </div>
         
         <div class="flex gap-2 mb-2">
           <button id="load-categories">Load Categories</button>
-          <button id="load-all-cricket" class="secondary">Load All Cricket Data</button>
+          <button id="load-all-cricket" class="secondary">Load All Sports Data</button>
           <button id="clear-cricket-cache" class="danger">Clear Cache</button>
         </div>
       </div>
@@ -625,8 +625,8 @@
         
         <div class="panel">
           <div class="panel-header">
-            <h3>🏟️ Matches</h3>
-            <span id="matches-count">0 matches</span>
+            <h3>🏟️ Events</h3>
+            <span id="matches-count">0 events</span>
           </div>
           <div id="matches-list"></div>
         </div>
@@ -642,14 +642,14 @@
 
       <div class="panel">
         <div class="panel-header">
-          <h3>🎬 Cricket Video Player</h3>
+          <h3>🎬 Sports Video Player</h3>
         </div>
         <video id="cricket-video" controls></video>
       </div>
 
       <div class="panel">
         <div class="panel-header">
-          <h3>📡 Cricket API Response</h3>
+          <h3>📡 Sports API Response</h3>
           <button class="small secondary" id="cricket-clear-response">Clear</button>
         </div>
         <pre id="cricket-response">No response yet...</pre>
@@ -729,9 +729,9 @@
           </div>
           
           <div class="panel">
-            <h4>🏏 Cricket Cache</h4>
+            <h4>⚽ Sports Cache</h4>
             <div id="cricket-cache-info">
-              <div class="status loading">Loading cricket cache info...</div>
+              <div class="status loading">Loading sports cache info...</div>
             </div>
           </div>
         </div>
@@ -744,7 +744,7 @@
             <select id="cache-type-filter">
               <option value="all">All Cache Types</option>
               <option value="media">Media Cache</option>
-              <option value="cricket">Cricket Cache</option>
+              <option value="cricket">Sports Cache</option>
             </select>
             <button id="filter-cache-entries">Filter</button>
           </div>

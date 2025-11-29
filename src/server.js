@@ -6,6 +6,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { CricwatchScraper } = require('./cricwatch-scraper');
+const { TotalsportekScraper } = require('./totalsportek-scraper');
  
 const PORT = Number(process.env.PORT) || 4000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -660,10 +661,10 @@ app.get('/v2/stream', async (req, res) => {
   }
 });
 
-// ---------- V3 Cricket API Endpoints ----------
+// ---------- V3 Sports API Endpoints (Totalsportek.es) ----------
 
-app.get('/v3/cricket/categories', async (req, res) => {
-  const cacheKey = 'v3:cricket:categories';
+app.get('/v3/sports/categories', async (req, res) => {
+  const cacheKey = 'v3:sports:categories';
   const cached = cricketCache.get(cacheKey);
   
   if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
@@ -675,7 +676,7 @@ app.get('/v3/cricket/categories', async (req, res) => {
     });
   }
 
-  const scraper = new CricwatchScraper();
+  const scraper = new TotalsportekScraper();
   
   try {
     const categories = await scraper.getCategories();
@@ -698,7 +699,7 @@ app.get('/v3/cricket/categories', async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: 'scraping_error',
-      message: 'Failed to scrape cricket categories from cricwatch.io',
+      message: 'Failed to scrape sports categories from totalsportek.es',
       details: {
         internalMessage: rawMessage
       }
@@ -708,21 +709,21 @@ app.get('/v3/cricket/categories', async (req, res) => {
   }
 });
 
-app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
+app.get('/v3/sports/category/:slug/events', async (req, res) => {
   const { slug } = req.params;
-  const cacheKey = `v3:cricket:category:${slug}:matches`;
+  const cacheKey = `v3:sports:category:${slug}:events`;
   const cached = cricketCache.get(cacheKey);
   
   if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
     return res.json({
       ok: true,
-      data: cached.matches,
+      data: cached.events,
       fromCache: true,
       cachedAt: cached.cachedAt
     });
   }
 
-  const scraper = new CricwatchScraper();
+  const scraper = new TotalsportekScraper();
   
   try {
     // First get categories to find the URL for this slug
@@ -740,9 +741,9 @@ app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
       });
     }
 
-    const matches = await scraper.getMatchesFromCategory(category.url);
+    const events = await scraper.getEventsFromCategory(category.url);
     const cacheData = {
-      matches,
+      events,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
       cachedAt: Date.now()
     };
@@ -751,7 +752,7 @@ app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
     
     return res.json({
       ok: true,
-      data: matches,
+      data: events,
       fromCache: false
     });
   } catch (err) {
@@ -760,7 +761,7 @@ app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: 'scraping_error',
-      message: 'Failed to scrape cricket matches from category',
+      message: 'Failed to scrape sports events from category',
       details: {
         internalMessage: rawMessage,
         categorySlug: slug
@@ -771,21 +772,21 @@ app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
   }
 });
 
-app.get('/v3/cricket/match/streams', async (req, res) => {
-  const { matchUrl } = req.query;
+app.get('/v3/sports/event/streams', async (req, res) => {
+  const { eventUrl } = req.query;
   
-  if (!matchUrl) {
+  if (!eventUrl) {
     return res.status(400).json({
       ok: false,
       error: 'validation_error',
-      message: 'Query parameter "matchUrl" is required',
+      message: 'Query parameter "eventUrl" is required',
       details: {
-        missing: ['matchUrl']
+        missing: ['eventUrl']
       }
     });
   }
 
-  const cacheKey = `v3:cricket:match:${Buffer.from(matchUrl).toString('base64')}:streams`;
+  const cacheKey = `v3:sports:event:${Buffer.from(eventUrl).toString('base64')}:streams`;
   const cached = cricketCache.get(cacheKey);
   
   if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
@@ -797,10 +798,10 @@ app.get('/v3/cricket/match/streams', async (req, res) => {
     });
   }
 
-  const scraper = new CricwatchScraper();
+  const scraper = new TotalsportekScraper();
   
   try {
-    const streams = await scraper.extractStreamUrls(matchUrl);
+    const streams = await scraper.extractStreamUrls(eventUrl);
     const cacheData = {
       streams,
       expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes - streams expire quickly
@@ -820,10 +821,10 @@ app.get('/v3/cricket/match/streams', async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: 'scraping_error',
-      message: 'Failed to extract stream URLs from match page',
+      message: 'Failed to extract stream URLs from event page',
       details: {
         internalMessage: rawMessage,
-        matchUrl
+        eventUrl
       }
     });
   } finally {
@@ -831,8 +832,8 @@ app.get('/v3/cricket/match/streams', async (req, res) => {
   }
 });
 
-app.get('/v3/cricket/all', async (req, res) => {
-  const cacheKey = 'v3:cricket:all';
+app.get('/v3/sports/all', async (req, res) => {
+  const cacheKey = 'v3:sports:all';
   const cached = cricketCache.get(cacheKey);
   
   if (cached && cached.expiresAt && cached.expiresAt > Date.now()) {
@@ -844,10 +845,10 @@ app.get('/v3/cricket/all', async (req, res) => {
     });
   }
 
-  const scraper = new CricwatchScraper();
+  const scraper = new TotalsportekScraper();
   
   try {
-    const allData = await scraper.getAllCricketData();
+    const allData = await scraper.getAllSportsData();
     const cacheData = {
       data: allData,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
@@ -867,7 +868,7 @@ app.get('/v3/cricket/all', async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: 'scraping_error',
-      message: 'Failed to scrape complete cricket data from cricwatch.io',
+      message: 'Failed to scrape complete sports data from totalsportek.es',
       details: {
         internalMessage: rawMessage
       }
@@ -875,6 +876,30 @@ app.get('/v3/cricket/all', async (req, res) => {
   } finally {
     await scraper.close();
   }
+});
+
+// ---------- Legacy Cricket API Endpoints (for backward compatibility) ----------
+
+app.get('/v3/cricket/categories', async (req, res) => {
+  // Redirect to new sports endpoints
+  return res.redirect(307, '/v3/sports/categories');
+});
+
+app.get('/v3/cricket/category/:slug/matches', async (req, res) => {
+  // Redirect to new sports endpoints
+  const { slug } = req.params;
+  return res.redirect(307, `/v3/sports/category/${slug}/events`);
+});
+
+app.get('/v3/cricket/match/streams', async (req, res) => {
+  // Redirect to new sports endpoints
+  const { matchUrl } = req.query;
+  return res.redirect(307, `/v3/sports/event/streams?eventUrl=${encodeURIComponent(matchUrl)}`);
+});
+
+app.get('/v3/cricket/all', async (req, res) => {
+  // Redirect to new sports endpoints
+  return res.redirect(307, '/v3/sports/all');
 });
 
 app.get('/health', (req, res) => {
@@ -915,6 +940,7 @@ app.get('/dashboard/status', (req, res) => {
     cache: cacheStats,
     endpoints: {
       media: ['/stream', '/v2/stream'],
+      sports: ['/v3/sports/categories', '/v3/sports/category/:slug/events', '/v3/sports/event/streams', '/v3/sports/all'],
       cricket: ['/v3/cricket/categories', '/v3/cricket/category/:slug/matches', '/v3/cricket/match/streams', '/v3/cricket/all'],
       utility: ['/health', '/dashboard/status']
     }
@@ -1054,7 +1080,7 @@ app.use((req, res) => {
     ok: false,
     error: 'not_found',
     message:
-      'Route not found. Available endpoints are: GET /stream, GET /v2/stream, GET /v3/cricket/categories, GET /v3/cricket/category/:slug/matches, GET /v3/cricket/match/streams, GET /v3/cricket/all, GET /health, and static files under /public (e.g. /test-player.html, /cricket-test.html).',
+      'Route not found. Available endpoints are: GET /stream, GET /v2/stream, GET /v3/sports/categories, GET /v3/sports/category/:slug/events, GET /v3/sports/event/streams, GET /v3/sports/all, GET /v3/cricket/categories (legacy), GET /health, and static files under /public (e.g. /test-player.html, /cricket-test.html).',
     details: {
       method: req.method,
       path: req.originalUrl

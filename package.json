@@ -1,7 +1,7 @@
 {
   "name": "catalog-proxy",
   "version": "3.0.0",
-  "description": "CAT-alog Proxy stream resolver for TMDB/TV/Anime + Cricket streaming from cricwatch.io",
+  "description": "CAT-alog Proxy stream resolver for TMDB/TV/Anime + Sports streaming from totalsportek.es",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -13,8 +13,8 @@
     "streaming",
     "tmdb",
     "hls",
-    "cricket",
-    "cricwatch"
+    "sports",
+    "totalsportek"
   ],
   "author": "",
   "license": "MIT",

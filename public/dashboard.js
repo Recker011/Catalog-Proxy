@@ -39,11 +39,11 @@ class Dashboard {
     document.getElementById('media-clear-btn').addEventListener('click', () => this.clearMediaForm());
     document.getElementById('media-clear-response').addEventListener('click', () => this.clearMediaResponse());
 
-    // Cricket streaming
-    document.getElementById('load-categories').addEventListener('click', () => this.loadCricketCategories());
-    document.getElementById('load-all-cricket').addEventListener('click', () => this.loadAllCricketData());
-    document.getElementById('clear-cricket-cache').addEventListener('click', () => this.clearCricketCache());
-    document.getElementById('cricket-clear-response').addEventListener('click', () => this.clearCricketResponse());
+    // Sports streaming
+    document.getElementById('load-categories').addEventListener('click', () => this.loadSportsCategories());
+    document.getElementById('load-all-cricket').addEventListener('click', () => this.loadAllSportsData());
+    document.getElementById('clear-cricket-cache').addEventListener('click', () => this.clearSportsCache());
+    document.getElementById('cricket-clear-response').addEventListener('click', () => this.clearSportsResponse());
 
     // Status monitoring
     document.getElementById('refresh-status').addEventListener('click', () => this.refreshAllStatus());
@@ -334,8 +334,8 @@ class Dashboard {
     document.getElementById('media-response').textContent = 'No response yet...';
   }
 
-  // Cricket Streaming Functions
-  async loadCricketCategories() {
+  // Sports Streaming Functions
+  async loadSportsCategories() {
     const btn = document.getElementById('load-categories');
     const originalText = btn.textContent;
     
@@ -344,7 +344,7 @@ class Dashboard {
       btn.textContent = 'Loading...';
       this.showCricketStatus('Loading categories...', 'loading');
       
-      const response = await fetch('/v3/cricket/categories');
+      const response = await fetch('/v3/sports/categories');
       const data = await response.json();
       
       this.displayCricketResponse(data);
@@ -352,45 +352,45 @@ class Dashboard {
       if (data.ok) {
         this.displayCategories(data.data);
         this.showCricketStatus(`Loaded ${data.data.length} categories`, 'success');
-        this.logActivity(`Loaded ${data.data.length} cricket categories`);
+        this.logActivity(`Loaded ${data.data.length} sports categories`);
       } else {
         throw new Error(data.message || 'Failed to load categories');
       }
       
     } catch (error) {
       this.showCricketStatus(error.message, 'error');
-      this.logActivity(`Cricket categories loading failed: ${error.message}`, 'error');
+      this.logActivity(`Sports categories loading failed: ${error.message}`, 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
     }
   }
 
-  async loadAllCricketData() {
+  async loadAllSportsData() {
     const btn = document.getElementById('load-all-cricket');
     const originalText = btn.textContent;
     
     try {
       btn.disabled = true;
       btn.textContent = 'Loading...';
-      this.showCricketStatus('Loading all cricket data (this may take a while)...', 'loading');
+      this.showCricketStatus('Loading all sports data (this may take a while)...', 'loading');
       
-      const response = await fetch('/v3/cricket/all');
+      const response = await fetch('/v3/sports/all');
       const data = await response.json();
       
       this.displayCricketResponse(data);
       
       if (data.ok) {
-        this.displayAllCricketData(data.data);
+        this.displayAllSportsData(data.data);
         this.showCricketStatus(`Loaded data for ${data.data.length} categories`, 'success');
-        this.logActivity(`Loaded complete cricket data for ${data.data.length} categories`);
+        this.logActivity(`Loaded complete sports data for ${data.data.length} categories`);
       } else {
-        throw new Error(data.message || 'Failed to load cricket data');
+        throw new Error(data.message || 'Failed to load sports data');
       }
       
     } catch (error) {
       this.showCricketStatus(error.message, 'error');
-      this.logActivity(`Cricket data loading failed: ${error.message}`, 'error');
+      this.logActivity(`Sports data loading failed: ${error.message}`, 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
@@ -417,7 +417,7 @@ class Dashboard {
     });
   }
 
-  displayAllCricketData(categories) {
+  displayAllSportsData(categories) {
     const categoriesContainer = document.getElementById('categories-list');
     const matchesContainer = document.getElementById('matches-list');
     const categoriesCount = document.getElementById('categories-count');
@@ -426,31 +426,31 @@ class Dashboard {
     categoriesContainer.innerHTML = '';
     matchesContainer.innerHTML = '';
     
-    let totalMatches = 0;
+    let totalEvents = 0;
     
     categories.forEach(category => {
       const categoryItem = document.createElement('div');
       categoryItem.className = 'list-item';
       categoryItem.innerHTML = `
         <div class="list-item-title">${category.name}</div>
-        <div class="list-item-subtitle">${category.matches ? category.matches.length : 0} matches</div>
+        <div class="list-item-subtitle">${category.events ? category.events.length : 0} events</div>
       `;
       
       categoryItem.onclick = () => {
         this.selectCategory(category, categoryItem);
-        if (category.matches) {
-          this.displayMatches(category.matches);
-          totalMatches = category.matches.length;
-          matchesCount.textContent = `${totalMatches} matches`;
+        if (category.events) {
+          this.displayEvents(category.events);
+          totalEvents = category.events.length;
+          matchesCount.textContent = `${totalEvents} events`;
         }
       };
       
       categoriesContainer.appendChild(categoryItem);
-      totalMatches += category.matches ? category.matches.length : 0;
+      totalEvents += category.events ? category.events.length : 0;
     });
     
     categoriesCount.textContent = `${categories.length} categories`;
-    matchesCount.textContent = `${totalMatches} matches`;
+    matchesCount.textContent = `${totalEvents} events`;
   }
 
   async selectCategory(category, element) {
@@ -460,70 +460,70 @@ class Dashboard {
     });
     element.classList.add('selected');
     
-    this.showCricketStatus(`Loading matches for ${category.name}...`, 'loading');
+    this.showCricketStatus(`Loading events for ${category.name}...`, 'loading');
     
     try {
-      const response = await fetch(`/v3/cricket/category/${category.slug}/matches`);
+      const response = await fetch(`/v3/sports/category/${category.slug}/events`);
       const data = await response.json();
       
       this.displayCricketResponse(data);
       
       if (data.ok) {
-        this.displayMatches(data.data);
-        this.showCricketStatus(`Loaded ${data.data.length} matches for ${category.name}`, 'success');
-        this.logActivity(`Loaded ${data.data.length} matches for ${category.name}`);
+        this.displayEvents(data.data);
+        this.showCricketStatus(`Loaded ${data.data.length} events for ${category.name}`, 'success');
+        this.logActivity(`Loaded ${data.data.length} events for ${category.name}`);
       } else {
-        throw new Error(data.message || 'Failed to load matches');
+        throw new Error(data.message || 'Failed to load events');
       }
       
     } catch (error) {
       this.showCricketStatus(error.message, 'error');
-      this.logActivity(`Cricket matches loading failed: ${error.message}`, 'error');
+      this.logActivity(`Sports events loading failed: ${error.message}`, 'error');
     }
   }
 
-  displayMatches(matches) {
+  displayEvents(events) {
     const container = document.getElementById('matches-list');
     const countEl = document.getElementById('matches-count');
     
     container.innerHTML = '';
-    countEl.textContent = `${matches.length} matches`;
+    countEl.textContent = `${events.length} events`;
     
-    matches.forEach(match => {
+    events.forEach(event => {
       const item = document.createElement('div');
       item.className = 'list-item';
       
       let streamLinksHtml = '';
-      if (match.streamLinks && match.streamLinks.length > 0) {
+      if (event.streamLinks && event.streamLinks.length > 0) {
         streamLinksHtml = '<div class="stream-links">';
-        match.streamLinks.forEach(link => {
+        event.streamLinks.forEach(link => {
           streamLinksHtml += `<span class="stream-link">${link.name}</span>`;
         });
         streamLinksHtml += '</div>';
       }
       
       item.innerHTML = `
-        <div class="list-item-title">${match.title}</div>
-        <div class="list-item-subtitle">URL: ${match.url}</div>
+        <div class="list-item-title">${event.title}</div>
+        <div class="list-item-subtitle">URL: ${event.url}</div>
         ${streamLinksHtml}
       `;
       
-      item.onclick = () => this.selectMatch(match, item);
+      item.onclick = () => this.selectEvent(event, item);
       container.appendChild(item);
     });
   }
 
-  async selectMatch(match, element) {
+  async selectEvent(event, element) {
     // Update UI selection
     document.querySelectorAll('#matches-list .list-item').forEach(el => {
       el.classList.remove('selected');
     });
     element.classList.add('selected');
     
-    this.showCricketStatus(`Extracting stream URLs for ${match.title}...`, 'loading');
+    this.showCricketStatus(`Extracting stream URLs for ${event.title}...`, 'loading');
     
     try {
-      const response = await fetch(`/v3/cricket/match/streams?matchUrl=${encodeURIComponent(match.url)}`);
+      const response = await fetch(`/v3/sports/event/streams?eventUrl=${encodeURIComponent(event.url)}`);
       const data = await response.json();
       
       this.displayCricketResponse(data);
@@ -531,14 +531,14 @@ class Dashboard {
       if (data.ok) {
         this.displayStreams(data.data);
         this.showCricketStatus(`Found ${data.data.length} stream URLs`, 'success');
-        this.logActivity(`Found ${data.data.length} streams for ${match.title}`);
+        this.logActivity(`Found ${data.data.length} streams for ${event.title}`);
       } else {
         throw new Error(data.message || 'Failed to extract streams');
       }
       
     } catch (error) {
       this.showCricketStatus(error.message, 'error');
-      this.logActivity(`Cricket stream extraction failed: ${error.message}`, 'error');
+      this.logActivity(`Sports stream extraction failed: ${error.message}`, 'error');
     }
   }
 
@@ -588,6 +588,14 @@ class Dashboard {
     video.pause();
     video.removeAttribute('src');
     video.load();
+    video.style.display = 'block'; // Ensure video is visible by default
+    
+    // Remove any existing iframes in the container
+    const container = video.parentElement;
+    const existingIframe = container.querySelector('iframe');
+    if (existingIframe) {
+      existingIframe.remove();
+    }
     
     this.showCricketStatus(`Playing cricket stream: ${format}`, 'success');
     
@@ -614,6 +622,33 @@ class Dashboard {
         video.play().catch(() => {
           this.showCricketStatus('Autoplay blocked - click play to start', 'warning');
         });
+      } else if (format === 'iframe') {
+        // Handle iframe playback
+        const container = video.parentElement;
+        
+        // Remove existing iframe if any
+        const existingIframe = container.querySelector('iframe');
+        if (existingIframe) {
+          existingIframe.remove();
+        }
+        
+        // Hide video element
+        video.style.display = 'none';
+        
+        // Create and append iframe pointing to our proxy player
+        const iframe = document.createElement('iframe');
+        // Use our proxy player to sandbox the stream
+        iframe.src = `/proxy-player.html?url=${encodeURIComponent(streamUrl)}`;
+        iframe.width = '100%';
+        iframe.height = '500px';
+        iframe.frameBorder = '0';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        iframe.style.borderRadius = '8px';
+        iframe.style.background = '#000';
+        
+        container.appendChild(iframe);
+        this.showCricketStatus('Loaded sandboxed iframe player', 'success');
       } else {
         throw new Error('Stream format not supported in this browser');
       }
@@ -637,15 +672,15 @@ class Dashboard {
     responseEl.textContent = JSON.stringify(data, null, 2);
   }
 
-  clearCricketResponse() {
+  clearSportsResponse() {
     document.getElementById('cricket-response').textContent = 'No response yet...';
   }
 
-  async clearCricketCache() {
+  async clearSportsCache() {
     // This would require a cache-clearing endpoint on the server
     // For now, just reload the page
     this.showCricketStatus('Cache cleared (page reload required)', 'success');
-    this.logActivity('Cricket cache cleared');
+    this.logActivity('Sports cache cleared');
     setTimeout(() => window.location.reload(), 2000);
   }
 
@@ -715,7 +750,7 @@ class Dashboard {
     // Check external service availability
     const services = [
       { name: 'VidLink', url: 'https://vidlink.pro' },
-      { name: 'Cricwatch', url: 'https://cricwatch.io' }
+      { name: 'Totalsportek', url: 'https://totalsportek.es' }
     ];
     
     let statusHtml = '';
